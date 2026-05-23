@@ -6,16 +6,16 @@ import datetime
 st.set_page_config(page_title="ArXiv 概率论前沿助手", page_icon="🎲", layout="wide")
 st.title("🎲 ArXiv 概率论 (math.PR) 检索与最新动态")
 
-# 核心：搜索 arXiv 并根据“最新更新时间 (Updated)”过滤
-def fetch_papers(query, max_results, days_ago):
-    if not query:
-        return []
-        
+# --- 核心拉取逻辑重构 ---
+def fetch_papers_with_strict_filter(query, target_count, days_ago):
+    """
+    为了解决 API 交叉分类漏掉文章的问题，采用“宽进严出”策略：
+    先用宽泛的查询拉取文章，然后在代码层面严格判断是否包含 math.PR。
+    """
     client = arxiv.Client()
-    # 关键修改 1：按最后更新时间 (LastUpdatedDate) 倒序排列，与官网同步
     search = arxiv.Search(
-        query=query,
-        max_results=max_results,
+        query=query, 
+        max_results=target_count * 5, # 扩大搜索池，因为要在本地过滤
         sort_by=arxiv.SortCriterion.LastUpdatedDate, 
         sort_order=arxiv.SortOrder.Descending
     )
@@ -25,19 +25,23 @@ def fetch_papers(query, max_results, days_ago):
     
     try:
         for result in client.results(search):
-            # 关键修改 2：使用 updated (更新时间) 而不是 published (首发时间) 来判断
-            if result.updated.replace(tzinfo=None) >= target_date:
+            # 停止条件：超出时间范围
+            if result.updated.replace(tzinfo=None) < target_date:
+                break
+                
+            # 停止条件：收集够了数量
+            if len(papers) >= target_count:
+                break
+
+            # 核心过滤：严格检查该文章的分类列表是否包含 math.PR
+            if "math.PR" in result.categories:
                 papers.append({
                     "title": result.title,
                     "authors": ", ".join([a.name for a in result.authors]),
-                    # 界面上标记出这是最后的更新时间
                     "updated": result.updated.strftime("%Y-%m-%d (Updated)"),
                     "summary": result.summary,
                     "pdf_url": result.pdf_url
                 })
-            else:
-                # 遇到超期的文章直接停止抓取，防止死循环
-                break
     except Exception as e:
         st.error(f"arXiv 检索出错: {e}")
         return []
@@ -47,13 +51,12 @@ def fetch_papers(query, max_results, days_ago):
 def build_search_query(keyword, author):
     query_parts = []
     if keyword:
-        # 仅限题目和摘要
         query_parts.append(f"(ti:{keyword} OR abs:{keyword})")
     if author:
         query_parts.append(f"au:{author}")
-    # 锁定在概率论方向
-    query_parts.append("cat:math.PR")
-    
+        
+    # 为了保证检索效率，精准检索依然带上 cat 限制，然后在本地严格复核
+    query_parts.append("cat:math.PR") 
     return " AND ".join(query_parts)
 
 
@@ -79,13 +82,13 @@ with tab1:
         else:
             search_query = build_search_query(keyword, author)
             
-            with st.spinner("正在概率论 (math.PR) 分类下检索最近 10 年的论文..."):
-                papers = fetch_papers(search_query, num_papers_search, days_ago=3650)
+            with st.spinner("正在检索最近 10 年的相关概率论论文..."):
+                papers = fetch_papers_with_strict_filter(search_query, num_papers_search, days_ago=3650)
                 
             if not papers:
                 st.error("❌ 未找到最近十年内符合该条件的概率论文章。")
             else:
-                st.success(f"✨ 成功筛选出 {len(papers)} 篇最近十年内的相关论文！")
+                st.success(f"✨ 成功筛选出 {len(papers)} 篇相关论文！")
                 for p in papers:
                     st.markdown(f"### [{p['title']}]({p['pdf_url']})")
                     st.markdown(f"**作者**：{p['authors']} | **最后更新**：{p['updated']}")
@@ -97,7 +100,7 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("🆕 最新概率论领域动态")
-    st.write("直接拉取 arXiv Probability (`cat:math.PR`) 的最新提交与版本更新 (Replacements)，与官网动态对齐。")
+    st.write("获取包含 `math.PR` 标签的所有最新提交与版本更新，完全对齐官网动态。")
     
     num_papers_browse = st.number_input(
         "想要浏览的最新篇数 (无上限，请输入具体的数字)：", 
@@ -108,9 +111,10 @@ with tab2:
     )
     
     if st.button("🔄 获取最新文章", type="primary"):
-        with st.spinner(f"正在拉取最新的 {num_papers_browse} 篇概率论论文，这可能需要几秒钟..."):
-            browse_query = "cat:math.PR"
-            papers = fetch_papers(browse_query, int(num_papers_browse), days_ago=730)
+        with st.spinner(f"正在深度抓取并过滤最新的 {num_papers_browse} 篇概率论论文..."):
+            # 关键修改：为了不漏掉交叉分类文章，先拉取大范围数学文章，再用代码筛
+            browse_query = "cat:math.*" 
+            papers = fetch_papers_with_strict_filter(browse_query, int(num_papers_browse), days_ago=730)
             
         if not papers:
             st.error("❌ 拉取失败或未找到文章。")
