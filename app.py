@@ -10,92 +10,95 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. 注入自定义 CSS 样式（纯正 arXiv 官网极简风）
+# 2. 注入自定义 CSS 样式（大字号护眼版）
 st.markdown("""
     <style>
-    /* 侧边栏宽度 */
+    /* 强制缩小左侧边栏的宽度至极限 */
     [data-testid="stSidebar"] {
         min-width: 200px !important;
         max-width: 200px !important;
     }
+    
+    /* 稍微缩小侧边栏里的字体，防止挤压 */
     [data-testid="stSidebar"] * {
         font-size: 14px;
     }
     
-    /* 官网风：去卡片化，纯白背景，紧凑外边距 */
-    .paper-container {
-        padding: 5px 0px 15px 0px; 
-        margin-bottom: 5px;
-        border-bottom: none;
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; /* 接近官网字体 */
+    /* 卡片基础样式：适度放大内边距让文字有呼吸空间 */
+    .paper-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px 18px; 
+        margin-bottom: 15px;
+        border-left: 4px solid #003366;
+        box-shadow: 1px 1px 3px rgba(0,0,0,0.05);
     }
     
-    /* [1] arXiv:xxxx.xxxx [pdf] 这一行的样式 */
-    .arxiv-id-line {
-        font-size: 13.5px;
-        font-weight: bold;
-        color: #000;
-        margin-bottom: 3px;
-    }
-    .arxiv-link {
-        color: #0000ee;
-        text-decoration: none;
-    }
-    .arxiv-link:hover {
-        text-decoration: underline;
-    }
-    
-    /* 纯黑加粗大标题 */
+    /* 论文标题 - 放大 */
     .paper-title {
-        color: #000000 !important;
-        font-size: 18px !important; 
+        color: #003366;
+        font-size: 20px !important; 
         font-weight: bold !important;
         text-decoration: none;
-        line-height: 1.2;
+        line-height: 1.3;
         display: block;
-        margin-bottom: 3px;
     }
-    
-    /* 经典蓝色作者列表 */
-    .authors {
-        color: #0000ee;
-        font-size: 15px;
-        margin-bottom: 2px;
-    }
-    
-    /* 极简分类与版本信息 */
-    .metadata-text {
-        color: #000;
-        font-size: 13.5px;
-        margin-top: 1px;
-    }
-
-    /* === 极简版折叠摘要 === */
-    .abstract-details {
-        margin-top: 4px;
-    }
-    
-    .abstract-summary {
-        cursor: pointer;
-        color: #0000ee; /* 官网链接蓝 */
-        font-size: 13.5px; 
-        outline: none;
-        user-select: none;
-    }
-    .abstract-summary:hover {
+    .paper-title:hover {
+        color: #0056b3;
         text-decoration: underline;
     }
     
-    /* 摘要正文，模仿官网的块级缩进 */
-    .abstract-text {
+    /* 元数据信息 - 放大 */
+    .metadata {
+        color: #666;
         font-size: 14.5px; 
-        line-height: 1.5;
-        color: #000;
-        padding: 0 10px 0 15px; /* 左侧缩进 */
         margin-top: 8px;
-        border-left: 2px solid #ddd; /* 极轻微的左侧灰线，帮助视线对齐 */
+        margin-bottom: 8px;
     }
     
+    /* 标签尺寸 - 放大 */
+    .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        background-color: #e9ecef;
+        color: #495057;
+        font-size: 12.5px; 
+        margin-right: 5px;
+    }
+
+    /* === 折叠面板样式 === */
+    .abstract-details {
+        margin-top: 10px;
+    }
+    
+    /* 折叠按钮外观 - 放大 */
+    .abstract-summary {
+        cursor: pointer;
+        color: #0056b3;
+        font-size: 15px; 
+        font-weight: 600;
+        outline: none;
+        user-select: none;
+        transition: color 0.2s;
+    }
+    .abstract-summary:hover {
+        color: #ff6600;
+    }
+    
+    /* 展开后的摘要文本内容 - 放大字号，增加行距 */
+    .abstract-text {
+        font-size: 15px; 
+        line-height: 1.6;
+        color: #333;
+        background: #ffffff;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-top: 10px;
+        border: 1px dashed #ccc;
+    }
+    
+    /* 缩小顶部标题占用空间 */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
@@ -126,9 +129,6 @@ def fetch_arxiv_data(query, target_count, days_ago, mode="search"):
                 if result.updated.replace(tzinfo=None) < target_date: break
             
             if "math.PR" in result.categories:
-                # 提取文章的纯数字 ID，例如 2605.22803
-                arxiv_id = result.pdf_url.split('/')[-1].replace('v', ' v')
-                
                 papers.append({
                     "title": result.title,
                     "authors": ", ".join([a.name for a in result.authors]),
@@ -136,7 +136,7 @@ def fetch_arxiv_data(query, target_count, days_ago, mode="search"):
                     "summary": result.summary,
                     "url": result.pdf_url,
                     "primary": result.primary_category,
-                    "id": arxiv_id
+                    "version": f"v{result.pdf_url.split('v')[-1]}" if 'v' in result.pdf_url else ""
                 })
     except Exception as e:
         st.error(f"Error: {e}")
@@ -162,20 +162,19 @@ with st.sidebar:
     
     st.caption("注：数据同步可能比官网延迟 12h。")
 
-# --- 渲染卡片的复用函数 (完全重构为官网排版) ---
-def render_paper_card(p, index):
+# --- 渲染卡片的复用函数 ---
+def render_paper_card(p):
     st.markdown(f"""
-        <div class="paper-container">
-            <div class="arxiv-id-line">
-                [{index}] <a href="{p['url']}" class="arxiv-link" target="_blank">arXiv:{p['id']}</a> 
-                [<a href="{p['url']}" class="arxiv-link" target="_blank">pdf</a>]
+        <div class="paper-card">
+            <a class="paper-title" href="{p['url']}" target="_blank">{p['title']}</a>
+            <div class="metadata">
+                <span class="badge">👤 {p['authors']}</span>
+                <span class="badge">📅 {p['date']}</span>
+                <span class="badge">🏷️ {p['primary']}</span>
+                <span class="badge">🔢 {p['version']}</span>
             </div>
-            <div class="paper-title">{p['title']}</div>
-            <div class="authors">{p['authors']}</div>
-            <div class="metadata-text"><b>Subjects:</b> {p['primary']} &nbsp;|&nbsp; <b>Date:</b> {p['date']}</div>
-            
             <details class="abstract-details">
-                <summary class="abstract-summary">▶ Show Abstract</summary>
+                <summary class="abstract-summary">▶ 点击展开阅读摘要 (Abstract)</summary>
                 <div class="abstract-text">
                     {p['summary']}
                 </div>
@@ -185,7 +184,7 @@ def render_paper_card(p, index):
 
 
 # --- 主界面内容 ---
-st.title("Probability (math.PR) Recent Updates")
+st.title("🔬 ArXiv Probability Scholar")
 
 if not run_button:
     st.info("👈 请在左侧配置参数并点击【执行任务】开始检索。")
@@ -204,8 +203,9 @@ else:
             results = fetch_arxiv_data("cat:math.PR", limit, 730, "browse")
 
     if results:
-        # 为了模仿官网的 [1], [2] 序号，加入 index
-        for index, p in enumerate(results, start=1):
-            render_paper_card(p, index)
+        st.success(f"找到 {len(results)} 篇相关论文")
+        # 遍历文章并调用卡片渲染函数
+        for p in results:
+            render_paper_card(p)
     else:
         st.error("未找到符合条件的文章。")
