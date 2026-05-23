@@ -12,7 +12,6 @@ def fetch_papers(query, max_results, days_ago):
         return []
         
     client = arxiv.Client()
-    # sort_by=SubmittedDate 且 sort_order=Descending，保证了“按日期倒序排序”
     search = arxiv.Search(
         query=query,
         max_results=max_results,
@@ -20,7 +19,6 @@ def fetch_papers(query, max_results, days_ago):
         sort_order=arxiv.SortOrder.Descending
     )
     
-    # 动态计算目标时间
     target_date = datetime.datetime.now() - datetime.timedelta(days=days_ago)
     papers = []
     
@@ -35,6 +33,9 @@ def fetch_papers(query, max_results, days_ago):
                     "summary": result.summary,
                     "pdf_url": result.pdf_url
                 })
+            else:
+                # 关键优化：因为是按日期倒序排的，遇到超期的文章直接停止抓取，节省内存和时间！
+                break
     except Exception as e:
         st.error(f"arXiv 检索出错: {e}")
         return []
@@ -44,16 +45,14 @@ def fetch_papers(query, max_results, days_ago):
 def build_search_query(keyword, author):
     query_parts = []
     if keyword:
-        # 限定在题目和摘要中
         query_parts.append(f"(ti:{keyword} OR abs:{keyword})")
     if author:
         query_parts.append(f"au:{author}")
-    # 限定在数学大类
     query_parts.append("cat:math.*")
     return " AND ".join(query_parts)
 
 
-# --- 界面布局：使用标签页（Tabs）分离两个功能 ---
+# --- 界面布局 ---
 tab1, tab2 = st.tabs(["🔍 关键词/作者精准检索 (近10年)", "🆕 浏览最新数学文章 (近2年)"])
 
 # 第一个 Tab：精准检索
@@ -74,7 +73,6 @@ with tab1:
             search_query = build_search_query(keyword, author)
             
             with st.spinner("正在数学分类下检索最近 10 年的论文..."):
-                # 近 10 年，约 3650 天
                 papers = fetch_papers(search_query, num_papers_search, days_ago=3650)
                 
             if not papers:
@@ -92,13 +90,19 @@ with tab2:
     st.header("🆕 最新数学领域文章浏览")
     st.write("直接拉取 arXiv Mathematics (`cat:math.*`) 类别下最新更新的文章，已自动按照日期排序。")
     
-    num_papers_browse = st.slider("想要浏览的最新篇数 (最多100篇)", min_value=10, max_value=100, value=20, key="slider_browse")
+    # 变动核心：使用数字输入框代替滑块，取消最大值限制
+    num_papers_browse = st.number_input(
+        "想要浏览的最新篇数 (无上限，请输入具体的数字)：", 
+        min_value=1, 
+        value=100, 
+        step=50, 
+        key="num_browse"
+    )
     
     if st.button("🔄 获取最新文章", type="primary"):
-        with st.spinner("正在拉取最新数学论文..."):
-            # 仅查询数学分类，近 2 年约 730 天
+        with st.spinner(f"正在拉取最新的 {num_papers_browse} 篇数学论文，数量较大时请耐心等待..."):
             browse_query = "cat:math.*"
-            papers = fetch_papers(browse_query, num_papers_browse, days_ago=730)
+            papers = fetch_papers(browse_query, int(num_papers_browse), days_ago=730)
             
         if not papers:
             st.error("❌ 拉取失败或未找到文章。")
