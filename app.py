@@ -3,8 +3,8 @@ import arxiv
 import datetime
 
 # 页面配置
-st.set_page_config(page_title="ArXiv 数学论文助手", page_icon="📐", layout="wide")
-st.title("📐 ArXiv 数学论文检索与浏览")
+st.set_page_config(page_title="ArXiv 概率论论文助手", page_icon="🎲", layout="wide")
+st.title("🎲 ArXiv 概率论 (math.PR) 论文检索与浏览")
 
 # 核心：搜索 arXiv 并根据指定天数过滤时间
 def fetch_papers(query, max_results, days_ago):
@@ -48,12 +48,13 @@ def build_search_query(keyword, author):
         query_parts.append(f"(ti:{keyword} OR abs:{keyword})")
     if author:
         query_parts.append(f"au:{author}")
-    query_parts.append("cat:math.*")
+    # 锁定在概率论方向
+    query_parts.append("cat:math.PR")
     return " AND ".join(query_parts)
 
 
 # --- 界面布局 ---
-tab1, tab2 = st.tabs(["🔍 关键词/作者精准检索 (近10年)", "🆕 浏览最新数学文章 (近2年)"])
+tab1, tab2 = st.tabs(["🔍 关键词/作者精准检索 (近10年)", "🆕 浏览最新概率论文章 (近2年)"])
 
 # 第一个 Tab：精准检索
 with tab1:
@@ -72,13 +73,13 @@ with tab1:
         else:
             search_query = build_search_query(keyword, author)
             
-            with st.spinner("正在数学分类下检索最近 10 年的论文..."):
+            with st.spinner("正在概率论 (math.PR) 分类下检索最近 10 年的论文..."):
                 papers = fetch_papers(search_query, num_papers_search, days_ago=3650)
                 
             if not papers:
-                st.error("❌ 未找到最近十年内符合该条件的数学类文章。")
+                st.error("❌ 未找到最近十年内符合该条件的概率论文章。")
             else:
-                st.success(f"✨ 成功筛选出 {len(papers)} 篇最近十年内的相关数学论文！")
+                st.success(f"✨ 成功筛选出 {len(papers)} 篇最近十年内的相关论文！")
                 for p in papers:
                     st.markdown(f"### [{p['title']}]({p['pdf_url']})")
                     st.markdown(f"**作者**：{p['authors']} | **发表日期**：{p['published']}")
@@ -87,10 +88,9 @@ with tab1:
 
 # 第二个 Tab：浏览最新文章
 with tab2:
-    st.header("🆕 最新数学领域文章浏览")
-    st.write("直接拉取 arXiv Mathematics (`cat:math.*`) 类别下最新更新的文章，已自动按照日期排序。")
+    st.header("🆕 最新概率论领域文章浏览")
+    st.write("直接拉取 arXiv Probability (`cat:math.PR`) 类别下最新更新的文章，已自动按照日期排序。")
     
-    # 变动核心：使用数字输入框代替滑块，取消最大值限制
     num_papers_browse = st.number_input(
         "想要浏览的最新篇数 (无上限，请输入具体的数字)：", 
         min_value=1, 
@@ -100,14 +100,14 @@ with tab2:
     )
     
     if st.button("🔄 获取最新文章", type="primary"):
-        with st.spinner(f"正在拉取最新的 {num_papers_browse} 篇数学论文，数量较大时请耐心等待..."):
-            browse_query = "cat:math.*"
+        with st.spinner(f"正在拉取最新的 {num_papers_browse} 篇概率论论文，数量较大时请耐心等待..."):
+            browse_query = "cat:math.PR"
             papers = fetch_papers(browse_query, int(num_papers_browse), days_ago=730)
             
         if not papers:
             st.error("❌ 拉取失败或未找到文章。")
         else:
-            st.success(f"✨ 成功拉取 {len(papers)} 篇最新数学论文！")
+            st.success(f"✨ 成功拉取 {len(papers)} 篇最新概率论论文！")
             for p in papers:
                 st.markdown(f"### [{p['title']}]({p['pdf_url']})")
                 st.markdown(f"**作者**：{p['authors']} | **发表日期**：{p['published']}")
