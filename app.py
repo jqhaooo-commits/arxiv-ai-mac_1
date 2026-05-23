@@ -3,32 +3,16 @@ import arxiv
 import datetime
 
 # 页面配置
-st.set_page_config(page_title="ArXiv 数学论文检索", page_icon="📐", layout="wide")
-st.title("📐 ArXiv 数学论文精准检索 (近1年)")
+st.set_page_config(page_title="ArXiv 数学论文助手", page_icon="📐", layout="wide")
+st.title("📐 ArXiv 数学论文检索与浏览")
 
-# 构造 arXiv 高级检索语句
-def build_query(keyword, author):
-    query_parts = []
-    
-    if keyword:
-        # 需求3：限制在题目 (ti) 和摘要 (abs) 中检索
-        query_parts.append(f"(ti:{keyword} OR abs:{keyword})")
-        
-    if author:
-        query_parts.append(f"au:{author}")
-        
-    # 需求2：强制限定在 Mathematics (数学) 类别中检索
-    query_parts.append("cat:math.*")
-    
-    # 将多个条件用 AND 连接
-    return " AND ".join(query_parts)
-
-# 搜索 arXiv 并过滤近 1 年的文章
-def search_arxiv(query, max_results):
+# 核心：搜索 arXiv 并根据指定天数过滤时间
+def fetch_papers(query, max_results, days_ago):
     if not query:
         return []
         
     client = arxiv.Client()
+    # sort_by=SubmittedDate 且 sort_order=Descending，保证了“按日期倒序排序”
     search = arxiv.Search(
         query=query,
         max_results=max_results,
@@ -36,14 +20,14 @@ def search_arxiv(query, max_results):
         sort_order=arxiv.SortOrder.Descending
     )
     
-    # 严格计算 1 年前的时间
-    one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
+    # 动态计算目标时间
+    target_date = datetime.datetime.now() - datetime.timedelta(days=days_ago)
     papers = []
     
     try:
         for result in client.results(search):
-            # 过滤出最近一年的文章
-            if result.published.replace(tzinfo=None) >= one_year_ago:
+            # 过滤出符合时间要求的文章
+            if result.published.replace(tzinfo=None) >= target_date:
                 papers.append({
                     "title": result.title,
                     "authors": ", ".join([a.name for a in result.authors]),
@@ -56,31 +40,70 @@ def search_arxiv(query, max_results):
         return []
     return papers
 
-# 主界面交互布局
-col1, col2 = st.columns(2)
-with col1:
-    keyword = st.text_input("🔍 关键词 (仅限题目和摘要):", placeholder="例如: SDEs, Wasserstein...")
-with col2:
-    author = st.text_input("👤 作者 (Author):", placeholder="例如: Bao, Jianhai...")
+# 构造精确检索语句
+def build_search_query(keyword, author):
+    query_parts = []
+    if keyword:
+        # 限定在题目和摘要中
+        query_parts.append(f"(ti:{keyword} OR abs:{keyword})")
+    if author:
+        query_parts.append(f"au:{author}")
+    # 限定在数学大类
+    query_parts.append("cat:math.*")
+    return " AND ".join(query_parts)
 
-# 需求1：检索文章最多拉长到 100 篇
-num_papers = st.slider("最大检索篇数 (自动过滤出其中的近1年文章)", min_value=10, max_value=100, value=50)
 
-if st.button("🚀 开始检索", type="primary"):
-    if not keyword and not author:
-        st.warning("⚠️ 关键词和作者至少需要填写一项！")
-    else:
-        search_query = build_query(keyword, author)
-        
-        with st.spinner("正在数学 (Mathematics) 分类下检索最近一年的论文..."):
-            papers = search_arxiv(search_query, num_papers)
+# --- 界面布局：使用标签页（Tabs）分离两个功能 ---
+tab1, tab2 = st.tabs(["🔍 关键词/作者精准检索 (近10年)", "🆕 浏览最新数学文章 (近2年)"])
+
+# 第一个 Tab：精准检索
+with tab1:
+    st.header("🔍 精准检索模式")
+    col1, col2 = st.columns(2)
+    with col1:
+        keyword = st.text_input("🔍 关键词 (仅限题目和摘要):", placeholder="例如: SDEs, Wasserstein...")
+    with col2:
+        author = st.text_input("👤 作者 (Author):", placeholder="例如: Bao, Jianhai...")
+
+    num_papers_search = st.slider("最大检索篇数 (最多100篇)", min_value=10, max_value=100, value=50, key="slider_search")
+
+    if st.button("🚀 开始精准检索", type="primary"):
+        if not keyword and not author:
+            st.warning("⚠️ 关键词和作者至少需要填写一项！")
+        else:
+            search_query = build_search_query(keyword, author)
+            
+            with st.spinner("正在数学分类下检索最近 10 年的论文..."):
+                # 近 10 年，约 3650 天
+                papers = fetch_papers(search_query, num_papers_search, days_ago=3650)
+                
+            if not papers:
+                st.error("❌ 未找到最近十年内符合该条件的数学类文章。")
+            else:
+                st.success(f"✨ 成功筛选出 {len(papers)} 篇最近十年内的相关数学论文！")
+                for p in papers:
+                    st.markdown(f"### [{p['title']}]({p['pdf_url']})")
+                    st.markdown(f"**作者**：{p['authors']} | **发表日期**：{p['published']}")
+                    st.write(p['summary'])
+                    st.markdown("---")
+
+# 第二个 Tab：浏览最新文章
+with tab2:
+    st.header("🆕 最新数学领域文章浏览")
+    st.write("直接拉取 arXiv Mathematics (`cat:math.*`) 类别下最新更新的文章，已自动按照日期排序。")
+    
+    num_papers_browse = st.slider("想要浏览的最新篇数 (最多100篇)", min_value=10, max_value=100, value=20, key="slider_browse")
+    
+    if st.button("🔄 获取最新文章", type="primary"):
+        with st.spinner("正在拉取最新数学论文..."):
+            # 仅查询数学分类，近 2 年约 730 天
+            browse_query = "cat:math.*"
+            papers = fetch_papers(browse_query, num_papers_browse, days_ago=730)
             
         if not papers:
-            st.error("❌ 未找到最近一年内符合该条件的数学类文章。")
+            st.error("❌ 拉取失败或未找到文章。")
         else:
-            st.success(f"✨ 成功筛选出 {len(papers)} 篇最近一年内的相关数学论文！")
-            
-            # 直接铺开展示
+            st.success(f"✨ 成功拉取 {len(papers)} 篇最新数学论文！")
             for p in papers:
                 st.markdown(f"### [{p['title']}]({p['pdf_url']})")
                 st.markdown(f"**作者**：{p['authors']} | **发表日期**：{p['published']}")
