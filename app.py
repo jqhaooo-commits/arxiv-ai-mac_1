@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. 注入自定义 CSS 样式（核心修改区）
+# 2. 注入自定义 CSS 样式（新增了折叠面板的美化）
 st.markdown("""
     <style>
     /* 强制缩小左侧边栏的宽度 */
@@ -19,7 +19,7 @@ st.markdown("""
         max-width: 260px !important;
     }
     
-    /* 压缩卡片间距和内边距，让一屏能显示更多篇数 */
+    /* 卡片基础样式 */
     .paper-card {
         background-color: #f8f9fa;
         border-radius: 8px;
@@ -29,7 +29,7 @@ st.markdown("""
         box-shadow: 1px 1px 3px rgba(0,0,0,0.05);
     }
     
-    /* 稍微调小标题字号并紧凑行高 */
+    /* 论文标题 */
     .paper-title {
         color: #003366;
         font-size: 18px !important;
@@ -43,23 +43,12 @@ st.markdown("""
         text-decoration: underline;
     }
     
-    /* 紧凑元数据信息 */
+    /* 元数据信息 */
     .metadata {
         color: #666;
         font-size: 13px;
         margin-top: 6px;
         margin-bottom: 6px;
-    }
-    
-    /* 压缩摘要的字号和行距，减少大片留白 */
-    .abstract-text {
-        font-size: 13px;
-        line-height: 1.4;
-        color: #333;
-        background: #ffffff;
-        padding: 8px 10px;
-        border-radius: 4px;
-        margin-top: 4px;
     }
     
     /* 缩小标签尺寸 */
@@ -71,6 +60,37 @@ st.markdown("""
         color: #495057;
         font-size: 11px;
         margin-right: 4px;
+    }
+
+    /* === 新增：折叠面板样式 === */
+    .abstract-details {
+        margin-top: 8px;
+    }
+    
+    /* 折叠按钮外观 */
+    .abstract-summary {
+        cursor: pointer;
+        color: #0056b3;
+        font-size: 13px;
+        font-weight: 600;
+        outline: none;
+        user-select: none;
+        transition: color 0.2s;
+    }
+    .abstract-summary:hover {
+        color: #ff6600; /* 悬停时变成亮色提示可点击 */
+    }
+    
+    /* 展开后的摘要文本内容 */
+    .abstract-text {
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: #333;
+        background: #ffffff;
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-top: 8px;
+        border: 1px dashed #ccc; /* 虚线边框区分层级 */
     }
     
     /* 缩小顶部标题占用空间 */
@@ -137,6 +157,27 @@ with st.sidebar:
     
     st.caption("注：数据同步可能比官网延迟 12h。")
 
+# --- 渲染卡片的复用函数 ---
+def render_paper_card(p):
+    st.markdown(f"""
+        <div class="paper-card">
+            <a class="paper-title" href="{p['url']}" target="_blank">{p['title']}</a>
+            <div class="metadata">
+                <span class="badge">👤 {p['authors']}</span>
+                <span class="badge">📅 {p['date']}</span>
+                <span class="badge">🏷️ {p['primary']}</span>
+                <span class="badge">🔢 {p['version']}</span>
+            </div>
+            <details class="abstract-details">
+                <summary class="abstract-summary">▶ 点击展开阅读摘要 (Abstract)</summary>
+                <div class="abstract-text">
+                    {p['summary']}
+                </div>
+            </details>
+        </div>
+    """, unsafe_allow_html=True)
+
+
 # --- 主界面内容 ---
 st.title("🔬 ArXiv Probability Scholar")
 
@@ -158,21 +199,8 @@ else:
 
     if results:
         st.success(f"找到 {len(results)} 篇相关论文")
+        # 遍历文章并调用卡片渲染函数
         for p in results:
-            # 渲染高密度卡片界面
-            st.markdown(f"""
-                <div class="paper-card">
-                    <a class="paper-title" href="{p['url']}" target="_blank">{p['title']}</a>
-                    <div class="metadata">
-                        <span class="badge">👤 {p['authors']}</span>
-                        <span class="badge">📅 {p['date']}</span>
-                        <span class="badge">🏷️ {p['primary']}</span>
-                        <span class="badge">🔢 {p['version']}</span>
-                    </div>
-                    <div class="abstract-text">
-                        <b>Abstract:</b> {p['summary']}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            render_paper_card(p)
     else:
         st.error("未找到符合条件的文章。")
