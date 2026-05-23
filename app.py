@@ -15,16 +15,16 @@ st.markdown("""
     <style>
     /* 强制缩小左侧边栏的宽度 */
     [data-testid="stSidebar"] {
-        min-width: 260px !important;
-        max-width: 260px !important;
+        min-width: 200px !important;
+        max-width: 200px !important;
     }
     
     /* 卡片基础样式 */
     .paper-card {
         background-color: #f8f9fa;
         border-radius: 8px;
-        padding: 12px 15px;
-        margin-bottom: 12px;
+        padding: 15px 18px;
+        margin-bottom: 15px;
         border-left: 4px solid #003366;
         box-shadow: 1px 1px 3px rgba(0,0,0,0.05);
     }
