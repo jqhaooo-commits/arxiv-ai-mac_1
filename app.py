@@ -115,7 +115,7 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("🆕 概率论最新更新动态")
-    st.caption("同步 arXiv 官网更新日志。包含全新提交 (New)、交叉分类 (Cross-lists) 及版本修改 (Replacements)。")
+   st.caption("同步 arXiv 官网更新序列。注：受 arXiv 官方发榜时差影响，此处显示的为作者**真实提交/更新日**，通常比官网批次名称早 1-2 天。")
     
     # 无上限数字输入框
     num_browse = st.number_input(
